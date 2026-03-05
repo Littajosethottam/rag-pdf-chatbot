@@ -1,4 +1,5 @@
 import streamlit as st
+import os
 
 from langchain.text_splitter import CharacterTextSplitter
 from langchain_community.document_loaders import PyPDFLoader
@@ -6,6 +7,10 @@ from langchain_community.vectorstores import FAISS
 from langchain_openai import OpenAIEmbeddings
 from langchain_openai import ChatOpenAI
 from langchain.chains import RetrievalQA
+
+
+# Set OpenAI key
+os.environ["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
 
 
 st.title("📄 Chat With Your PDF")
@@ -27,9 +32,7 @@ if uploaded_file:
 
     texts = splitter.split_documents(documents)
 
-    embeddings = OpenAIEmbeddings(
-        openai_api_key=st.secrets["OPENAI_API_KEY"]
-    )
+    embeddings = OpenAIEmbeddings()
 
     vectorstore = FAISS.from_documents(texts, embeddings)
 
@@ -37,8 +40,7 @@ if uploaded_file:
 
     llm = ChatOpenAI(
         model="gpt-4o-mini",
-        temperature=0,
-        openai_api_key=st.secrets["OPENAI_API_KEY"]
+        temperature=0
     )
 
     qa_chain = RetrievalQA.from_chain_type(
