@@ -92,7 +92,7 @@ if uploaded_files:
         ).data[0].embedding
 
         # Search FAISS
-        D, I = index.search(np.array([q_embed]).astype("float32"), k=3)
+        D, I = index.search(np.array([q_embed]).astype("float32"), k=5)
 
         # Limit context size (important fix)
         context = "\n\n".join([texts[i][:1500] for i in I[0]])
@@ -136,7 +136,18 @@ if uploaded_files:
                     )
 
         st.session_state.messages.append(
-            {"role": "assistant", "content": answer}
+           {
+    "role": "system",
+    "content": """
+You are an AI assistant that answers questions using the provided document.
+
+If the question asks for analysis (rating, summary, critique, etc.),
+use the document context to answer.
+
+If the question cannot be answered from the document,
+politely say the document does not contain enough information.
+"""
+}
         )
 
 else:
