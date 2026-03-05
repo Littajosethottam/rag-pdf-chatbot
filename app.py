@@ -1,43 +1,82 @@
 import streamlit as st
-import os
+import numpy as np
+import faiss
+from pypdf import PdfReader
+from openai import OpenAI
 
-# set API key for OpenAI
-os.environ["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
+client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
-from langchain.text_splitter import CharacterTextSplitter
-from langchain_community.document_loaders import PyPDFLoader
-from langchain_community.vectorstores import FAISS
-from langchain_openai import OpenAIEmbeddings, ChatOpenAI
-from langchain.chains import RetrievalQA
+st.title("📄 Chat with your PDF")
 
-
-st.title("📄 Chat With Your PDF")
-
-uploaded_file = st.file_uploader("Upload your PDF", type="pdf")
+uploaded_file = st.file_uploader("Upload a PDF", type="pdf")
 
 if uploaded_file:
 
-    with open("temp.pdf", "wb") as f:
-        f.write(uploaded_file.read())
+    reader = PdfReader(uploaded_file)
 
-    loader = PyPDFLoader("temp.pdf")
-    documents = loader.load()
+    pages = []
+    texts = []
 
-    splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
-    texts = splitter.split_documents(documents)
+    for i, page in enumerate(reader.pages):
+        text = page.extract_text()
+        if text:
+            pages.append(i + 1)
+            texts.append(text)
 
-    embeddings = OpenAIEmbeddings()
+    # Create embeddings
+    embeddings = []
 
-    vectorstore = FAISS.from_documents(texts, embeddings)
-    retriever = vectorstore.as_retriever()
+    for text in texts:
+        response = client.embeddings.create(
+            model="text-embedding-3-small",
+            input=text
+        )
+        embeddings.append(response.data[0].embedding)
 
-    llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+    embeddings = np.array(embeddings).astype("float32")
 
-    qa_chain = RetrievalQA.from_chain_type(llm=llm, retriever=retriever)
+    # Build FAISS index
+    index = faiss.IndexFlatL2(len(embeddings[0]))
+    index.add(embeddings)
 
-    question = st.text_input("Ask a question about the document")
+    # Chat history
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+
+    for msg in st.session_state.messages:
+        st.chat_message(msg["role"]).write(msg["content"])
+
+    question = st.chat_input("Ask about the document")
 
     if question:
-        answer = qa_chain.invoke({"query": question})
-        st.write("### Answer")
-        st.write(answer["result"])
+
+        st.session_state.messages.append({"role": "user", "content": question})
+        st.chat_message("user").write(question)
+
+        q_embed = client.embeddings.create(
+            model="text-embedding-3-small",
+            input=question
+        ).data[0].embedding
+
+        D, I = index.search(np.array([q_embed]).astype("float32"), k=1)
+
+        context = texts[I[0][0]]
+        page = pages[I[0][0]]
+
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "Answer using the document context."},
+                {"role": "user", "content": f"Context:\n{context}\n\nQuestion:{question}"}
+            ]
+        )
+
+        answer = response.choices[0].message.content
+
+        answer_with_source = f"{answer}\n\n📄 Source: Page {page}"
+
+        st.session_state.messages.append(
+            {"role": "assistant", "content": answer_with_source}
+        )
+
+        st.chat_message("assistant").write(answer_with_source)
