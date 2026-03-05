@@ -5,6 +5,7 @@ An AI-powered application that allows users to upload PDF documents and ask ques
 The app uses Retrieval-Augmented Generation (RAG) to search document text and generate answers using a language model.
 
 🔗 **Live App:** [https://rag-pdf-chatbot.streamlit.app  ](https://rag-pdf-chatbot-8npmfnvpj3mcebbvfcueus.streamlit.app/)
+---
 🔗 **GitHub Repository:** https://github.com/Littajosethottam/rag-pdf-chatbot
 
 ---
@@ -26,5 +27,6 @@ The app uses Retrieval-Augmented Generation (RAG) to search document text and ge
 ## How It Works
 
 The application follows a Retrieval-Augmented Generation (RAG) pipeline:
+
 
 
