@@ -4,79 +4,103 @@ import faiss
 from pypdf import PdfReader
 from openai import OpenAI
 
+st.set_page_config(page_title="AI PDF Assistant", page_icon="📄", layout="wide")
+
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
-st.title("📄 Chat with your PDF")
+st.title("📄 AI PDF Assistant")
 
-uploaded_file = st.file_uploader("Upload a PDF", type="pdf")
+st.sidebar.header("Documents")
+uploaded_files = st.sidebar.file_uploader(
+    "Upload PDFs",
+    type="pdf",
+    accept_multiple_files=True
+)
 
-if uploaded_file:
+if st.sidebar.button("Reset Chat"):
+    st.session_state.messages = []
 
-    reader = PdfReader(uploaded_file)
+if uploaded_files:
 
     pages = []
     texts = []
 
-    for i, page in enumerate(reader.pages):
-        text = page.extract_text()
-        if text:
-            pages.append(i + 1)
-            texts.append(text)
+    with st.spinner("Reading PDFs..."):
+        for file in uploaded_files:
+            reader = PdfReader(file)
+            for i, page in enumerate(reader.pages):
+                text = page.extract_text()
+                if text:
+                    pages.append((file.name, i + 1))
+                    texts.append(text)
 
-    # Create embeddings
-    embeddings = []
-
-    for text in texts:
-        response = client.embeddings.create(
-            model="text-embedding-3-small",
-            input=text
-        )
-        embeddings.append(response.data[0].embedding)
+    with st.spinner("Creating embeddings..."):
+        embeddings = []
+        for text in texts:
+            emb = client.embeddings.create(
+                model="text-embedding-3-small",
+                input=text
+            ).data[0].embedding
+            embeddings.append(emb)
 
     embeddings = np.array(embeddings).astype("float32")
 
-    # Build FAISS index
     index = faiss.IndexFlatL2(len(embeddings[0]))
     index.add(embeddings)
 
-    # Chat history
     if "messages" not in st.session_state:
         st.session_state.messages = []
 
     for msg in st.session_state.messages:
-        st.chat_message(msg["role"]).write(msg["content"])
+        with st.chat_message(msg["role"]):
+            st.write(msg["content"])
 
-    question = st.chat_input("Ask about the document")
+    question = st.chat_input("Ask something about your documents...")
 
     if question:
 
         st.session_state.messages.append({"role": "user", "content": question})
-        st.chat_message("user").write(question)
+
+        with st.chat_message("user"):
+            st.write(question)
 
         q_embed = client.embeddings.create(
             model="text-embedding-3-small",
             input=question
         ).data[0].embedding
 
-        D, I = index.search(np.array([q_embed]).astype("float32"), k=1)
+        D, I = index.search(np.array([q_embed]).astype("float32"), k=3)
 
-        context = texts[I[0][0]]
-        page = pages[I[0][0]]
+        context = "\n\n".join([texts[i] for i in I[0]])
+        source = pages[I[0][0]]
 
-        response = client.chat.completions.create(
+        stream = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": "Answer using the document context."},
                 {"role": "user", "content": f"Context:\n{context}\n\nQuestion:{question}"}
-            ]
+            ],
+            stream=True
         )
 
-        answer = response.choices[0].message.content
+        with st.chat_message("assistant"):
 
-        answer_with_source = f"{answer}\n\n📄 Source: Page {page}"
+            response_text = ""
+            placeholder = st.empty()
+
+            for chunk in stream:
+                if chunk.choices[0].delta.content:
+                    response_text += chunk.choices[0].delta.content
+                    placeholder.write(response_text + "▌")
+
+            placeholder.write(response_text)
+
+            file_name, page_num = source
+            st.caption(f"📄 Source: {file_name} — Page {page_num}")
 
         st.session_state.messages.append(
-            {"role": "assistant", "content": answer_with_source}
+            {"role": "assistant", "content": response_text}
         )
 
-        st.chat_message("assistant").write(answer_with_source)
+else:
+    st.info("Upload one or more PDFs in the sidebar to start.")
