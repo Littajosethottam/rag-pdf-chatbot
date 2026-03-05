@@ -8,7 +8,9 @@ The app uses Retrieval-Augmented Generation (RAG) to search document text and ge
 🔗 **GitHub Repository:** https://github.com/Littajosethottam/rag-pdf-chatbot
 
 ---
+## Demo
 
+![AI PDF Assistant Interface](RAG_chatbot.png)
 ## Features
 
 - Upload one or multiple PDF documents
@@ -24,4 +26,5 @@ The app uses Retrieval-Augmented Generation (RAG) to search document text and ge
 ## How It Works
 
 The application follows a Retrieval-Augmented Generation (RAG) pipeline:
+
 
