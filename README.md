@@ -1,4 +1,4 @@
-# 📄 AI PDF Assistant
+# 📄 AI PDF Assistant Chatbot
 
 An AI-powered application that allows users to upload PDF documents and ask questions about their content.
 
@@ -137,6 +137,7 @@ https://github.com/Littajosethottam
 ## License
 
 This project is intended for educational and demonstration purposes.
+
 
 
 
