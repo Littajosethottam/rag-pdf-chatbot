@@ -1,16 +1,20 @@
 import streamlit as st
 import os
 
+# --- Load API key safely ---
+if "OPENAI_API_KEY" not in st.secrets:
+    st.error("OpenAI API key not found in Streamlit secrets.")
+    st.stop()
+
+os.environ["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
+
+# --- LangChain imports AFTER setting key ---
 from langchain.text_splitter import CharacterTextSplitter
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_community.vectorstores import FAISS
 from langchain_openai import OpenAIEmbeddings
 from langchain_openai import ChatOpenAI
 from langchain.chains import RetrievalQA
-
-
-# Set OpenAI key
-os.environ["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
 
 
 st.title("📄 Chat With Your PDF")
