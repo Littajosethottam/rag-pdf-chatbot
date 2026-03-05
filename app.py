@@ -4,7 +4,7 @@ import faiss
 from pypdf import PdfReader
 from openai import OpenAI
 
-# Page config
+# Page setup
 st.set_page_config(page_title="AI PDF Assistant", page_icon="📄", layout="wide")
 
 # OpenAI client
@@ -33,9 +33,11 @@ if uploaded_files:
     # Read PDFs
     with st.spinner("Reading PDFs..."):
         for file in uploaded_files:
+
             reader = PdfReader(file)
 
             for i, page in enumerate(reader.pages):
+
                 text = page.extract_text()
 
                 if text:
@@ -58,11 +60,11 @@ if uploaded_files:
 
     embeddings = np.array(embeddings).astype("float32")
 
-    # FAISS vector index
+    # Create FAISS index
     index = faiss.IndexFlatL2(len(embeddings[0]))
     index.add(embeddings)
 
-    # Chat history
+    # Chat memory
     if "messages" not in st.session_state:
         st.session_state.messages = []
 
@@ -71,12 +73,11 @@ if uploaded_files:
         with st.chat_message(msg["role"]):
             st.write(msg["content"])
 
-    # Chat input
+    # User input
     question = st.chat_input("Ask something about your documents...")
 
     if question:
 
-        # Show user message
         st.session_state.messages.append(
             {"role": "user", "content": question}
         )
@@ -90,40 +91,49 @@ if uploaded_files:
             input=question
         ).data[0].embedding
 
-        # Search vector DB
+        # Search FAISS
         D, I = index.search(np.array([q_embed]).astype("float32"), k=3)
 
-        context = "\n\n".join([texts[i] for i in I[0]])
+        # Limit context size (important fix)
+        context = "\n\n".join([texts[i][:1500] for i in I[0]])
+
         source = pages[I[0][0]]
 
-        # Ask LLM (non-streaming)
         with st.chat_message("assistant"):
 
             with st.spinner("Thinking..."):
 
-                response = client.chat.completions.create(
-                    model="gpt-4o-mini",
-                    messages=[
-                        {
-                            "role": "system",
-                            "content": "Answer using the provided document context."
-                        },
-                        {
-                            "role": "user",
-                            "content": f"Context:\n{context}\n\nQuestion: {question}"
-                        }
-                    ]
-                )
+                try:
 
-                answer = response.choices[0].message.content
+                    response = client.chat.completions.create(
+                        model="gpt-4o-mini",
+                        messages=[
+                            {
+                                "role": "system",
+                                "content": "Answer the question using the provided document context."
+                            },
+                            {
+                                "role": "user",
+                                "content": f"Context:\n{context}\n\nQuestion: {question}"
+                            }
+                        ],
+                        max_tokens=500
+                    )
 
-                st.write(answer)
+                    answer = response.choices[0].message.content
 
-                file_name, page_num = source
+                    st.write(answer)
 
-                st.caption(
-                    f"📄 Source: {file_name} — Page {page_num}"
-                )
+                    file_name, page_num = source
+
+                    st.caption(
+                        f"📄 Source: {file_name} — Page {page_num}"
+                    )
+
+                except Exception:
+                    st.error(
+                        "AI request failed. Please try again or ask a shorter question."
+                    )
 
         st.session_state.messages.append(
             {"role": "assistant", "content": answer}
