@@ -1,14 +1,5 @@
 import streamlit as st
-import os
 
-# --- Load API key safely ---
-if "OPENAI_API_KEY" not in st.secrets:
-    st.error("OpenAI API key not found in Streamlit secrets.")
-    st.stop()
-
-os.environ["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
-
-# --- LangChain imports AFTER setting key ---
 from langchain.text_splitter import CharacterTextSplitter
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_community.vectorstores import FAISS
@@ -36,7 +27,9 @@ if uploaded_file:
 
     texts = splitter.split_documents(documents)
 
-    embeddings = OpenAIEmbeddings()
+    embeddings = OpenAIEmbeddings(
+        api_key=st.secrets["OPENAI_API_KEY"]
+    )
 
     vectorstore = FAISS.from_documents(texts, embeddings)
 
@@ -44,7 +37,8 @@ if uploaded_file:
 
     llm = ChatOpenAI(
         model="gpt-4o-mini",
-        temperature=0
+        temperature=0,
+        api_key=st.secrets["OPENAI_API_KEY"]
     )
 
     qa_chain = RetrievalQA.from_chain_type(
